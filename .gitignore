@@ -1,8 +1,24 @@
+# Virtual Environment
 venv/
+
+# Python Cache
 __pycache__/
 *.pyc
+
+# macOS
 .DS_Store
+
+# Environment Variables
 .env
+
+# Test Files
 test.py
+
+# Temporary PDFs
 temp.pdf
+
+# User Reports (never upload patient reports)
 data/reports/
+
+# OCR Models / Cache (optional)
+*.log
