@@ -1,39 +1,28 @@
-import streamlit as st
-
 from src.pdf_reader import extract_text_from_pdf
-from src.report_explainer import explain_report
+from src.text_chunker import chunk_text
+from src.embeddings import get_embedding_model
+from src.vector_store import create_vector_store
 
-st.set_page_config(
-    page_title="OncoGuide AI",
-    page_icon="🩺"
+
+pdf_path = "data/reports/sample_report.pdf"
+
+
+text = extract_text_from_pdf(pdf_path)
+
+chunks = chunk_text(text)
+
+embedding_model = get_embedding_model()
+
+vector_db = create_vector_store(
+    chunks,
+    embedding_model
 )
 
-st.title("🩺 OncoGuide AI")
-st.write("Upload your cancer report and get a simple explanation.")
 
-uploaded_file = st.file_uploader(
-    "Upload PDF Report",
-    type=["pdf"]
-)
+query = "What is the diagnosis?"
 
-if uploaded_file:
+results = vector_db.similarity_search(query)
 
-    with open("temp.pdf", "wb") as f:
-        f.write(uploaded_file.getbuffer())
 
-    report_text = extract_text_from_pdf("temp.pdf")
-
-    st.subheader("Extracted Report Text")
-
-    with st.expander("View Text"):
-        st.write(report_text)
-
-    if st.button("Explain Report"):
-
-        with st.spinner("Analyzing report..."):
-
-            explanation = explain_report(report_text)
-
-        st.subheader("AI Explanation")
-
-        st.write(explanation)
+for r in results:
+    print(r.page_content)
