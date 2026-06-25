@@ -1,11 +1,14 @@
 import tempfile
 import streamlit as st
+import traceback
 
+from src.chatbot import answer_question
 from src.pdf_reader import extract_text_from_pdf
 from src.text_chunker import chunk_text
 from src.embeddings import get_embedding_model
 from src.vector_store import create_vector_store
 from src.medical_terms import simplify_terms
+from src.report_explainer import explain_report
 
 # -----------------------------
 # Page Config
@@ -72,7 +75,7 @@ if uploaded_file is not None:
     st.divider()
 
     # -----------------------------
-    # Patient Report Details
+    # Medical Terms
     # -----------------------------
     with st.expander("Medical Terms Explained", expanded=False):
 
@@ -83,8 +86,30 @@ if uploaded_file is not None:
         else:
             st.write("No matching medical terms found.")
 
+    # -----------------------------
+    # Report Content
+    # -----------------------------
     with st.expander("Report Content", expanded=False):
         st.text(report_text)
+
+    # -----------------------------
+    # AI Report Explanation
+    # -----------------------------
+    st.divider()
+
+    if st.button("Explain My Report"):
+
+        try:
+            with st.spinner("Analyzing report..."):
+
+                explanation = explain_report(report_text)
+
+            st.subheader("AI Report Explanation")
+            st.markdown(explanation)
+
+        except Exception as e:
+            st.error(f"Error generating explanation: {e}")
+            st.code(traceback.format_exc())
 
 # -----------------------------
 # Chat Section
@@ -114,14 +139,25 @@ if question:
 
     if st.session_state.vector_db:
 
-        results = st.session_state.vector_db.similarity_search(
-            question,
-            k=3
-        )
+        try:
+            with st.spinner("Thinking..."):
 
-        answer = "\n\n".join(
-            [doc.page_content for doc in results]
-        )
+                results = st.session_state.vector_db.similarity_search(
+                    question,
+                    k=3
+                )
+
+                context = "\n\n".join(
+                    [doc.page_content for doc in results]
+                )
+
+                answer = answer_question(
+                    question,
+                    context
+                )
+
+        except Exception as e:
+            answer = f"Error: {str(e)}"
 
     else:
         answer = "Please upload a medical report first."
