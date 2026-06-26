@@ -119,7 +119,25 @@ st.subheader("Ask Questions About Your Report")
 for message in st.session_state.messages:
 
     with st.chat_message(message["role"]):
+
         st.markdown(message["content"])
+
+        # Display sources if available
+        if (
+            message["role"] == "assistant"
+            and "sources" in message
+            and message["sources"]
+        ):
+
+            with st.expander("📄 Evidence from Your Report"):
+
+                for i, source in enumerate(message["sources"], start=1):
+
+                    st.markdown(f"**Evidence {i}**")
+
+                    st.write(source)
+
+                    st.divider()
 
 question = st.chat_input(
     "Ask a question about your report..."
@@ -142,15 +160,23 @@ if question:
         try:
             with st.spinner("Thinking..."):
 
+                # Retrieve relevant chunks
                 results = st.session_state.vector_db.similarity_search(
                     question,
                     k=3
                 )
+                st.write("Number of retrieved chunks:", len(results))
 
+            for i, doc in enumerate(results, start=1):
+                st.write(f"Chunk {i}:")
+                st.code(doc.page_content)
+
+                # Create context for the LLM
                 context = "\n\n".join(
                     [doc.page_content for doc in results]
                 )
 
+                # Generate answer
                 answer = answer_question(
                     question,
                     context
@@ -158,16 +184,35 @@ if question:
 
         except Exception as e:
             answer = f"Error: {str(e)}"
+            results = []
 
     else:
         answer = "Please upload a medical report first."
+        results = []
 
+    # -----------------------------
+    # Display Assistant Response
+    # -----------------------------
     with st.chat_message("assistant"):
-        st.markdown(answer)
+
+     st.markdown(answer)
+
+    if results:
+
+        with st.expander("📄 Evidence from Your Report"):
+
+            for i, doc in enumerate(results, start=1):
+
+                st.markdown(f"**Evidence {i}**")
+
+                st.write(doc.page_content)
+
+                st.divider()
 
     st.session_state.messages.append(
-        {
-            "role": "assistant",
-            "content": answer
-        }
-    )
+    {
+        "role": "assistant",
+        "content": answer,
+        "sources": [doc.page_content for doc in results] if results else []
+    }
+)
