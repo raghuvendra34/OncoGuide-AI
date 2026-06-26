@@ -13,3 +13,4 @@ data/reports/
 
 # Streamlit cache
 .streamlit/
+test_ollama.py
