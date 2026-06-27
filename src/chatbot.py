@@ -1,36 +1,82 @@
 from ollama import chat
 
 
-def answer_question(question, context):
+def answer_question(question, context, chat_history):
     """
-    Answer the user's question using the uploaded medical report
-    and general educational cancer knowledge when needed.
+    Answer the user's question using:
+    1. Uploaded medical report
+    2. Previous conversation
+    3. General medical knowledge (only when needed)
     """
 
+    # -----------------------------
+    # Build Conversation History
+    # -----------------------------
+    conversation = ""
+
+    if chat_history:
+        # Keep only the last 5 conversations
+        recent_history = chat_history[-5:]
+
+        for chat_item in recent_history:
+            conversation += (
+                f"User: {chat_item['question']}\n"
+                f"Assistant: {chat_item['answer']}\n\n"
+            )
+
+    # -----------------------------
+    # Prompt
+    # -----------------------------
     prompt = f"""
 You are OncoGuide AI, an AI-powered educational cancer support assistant.
 
 Your purpose is to help patients understand their uploaded medical reports
 in simple, clear, and patient-friendly language.
 
-Medical Report Context:
+====================================================
+PREVIOUS CONVERSATION
+====================================================
+
+{conversation}
+
+====================================================
+MEDICAL REPORT
+====================================================
+
 {context}
 
-Patient Question:
+====================================================
+CURRENT QUESTION
+====================================================
+
 {question}
 
-Instructions:
+====================================================
+INSTRUCTIONS
+====================================================
 
-1. Use the uploaded medical report as the PRIMARY source of information.
+1. The uploaded medical report is your PRIMARY source.
 
-2. If the answer is available in the report:
-   - Start your response with:
-     ## 📋 According to Your Report
-   - Explain the information in simple language.
+2. Use the previous conversation to understand follow-up questions.
 
-3. If additional explanation is helpful:
+Examples:
+- "Explain that."
+- "What does this mean?"
+- "Tell me more."
+- "What are its side effects?"
+- "Can you summarize it?"
 
-Start a new section:
+3. If the answer exists in the report:
+
+Start with
+
+## 📋 According to Your Report
+
+Explain everything in simple language.
+
+4. If additional explanation helps the patient:
+
+Start another section:
 
 ## 🩺 General Medical Information
 
@@ -38,44 +84,49 @@ Begin this section with:
 
 "The following information is based on general medical knowledge and is not specific to your uploaded report."
 
-Only include information that is educational and commonly accepted.
-Do not present general information as if it came from the uploaded report.
+5. If the report does NOT contain the requested information:
 
-4. If the report does NOT contain the requested information:
-   - Clearly say:
-     "This information is not directly mentioned in the uploaded report."
-   - Then provide general educational information if appropriate.
+Say:
 
-5. Never:
-   - Greet the patient by name.
-   - Make assumptions about emotions or feelings.
-   - Diagnose diseases.
-   - Prescribe medicines.
-   - Recommend changing treatment plans.
-   - Predict survival or outcomes.
+"This information is not directly mentioned in the uploaded medical report."
 
-6. Keep the response:
-   - Simple
-   - Professional
-   - Patient-friendly
-   - Easy to read
+Then provide general educational information.
 
-7. Use bullet points whenever appropriate.
+6. Never:
+- Diagnose diseases
+- Recommend treatments
+- Prescribe medicines
+- Predict outcomes
+- Invent report findings
 
-8. Keep paragraphs short.
+7. Keep responses:
+- Professional
+- Patient-friendly
+- Easy to understand
+- Short paragraphs
+- Bullet points whenever useful
 
-9. Finish every response with:
+8. Finish EVERY response with:
 
 ## ⚠ Disclaimer
 
-This information is for educational purposes only and should not replace professional medical advice. Please consult your doctor for medical guidance.
+This information is for educational purposes only and should not replace professional medical advice. Please consult your healthcare provider for medical guidance.
 
-Answer:
+====================================================
+ANSWER
+====================================================
 """
 
+    # -----------------------------
+    # Call Ollama
+    # -----------------------------
     response = chat(
         model="llama3",
         messages=[
+            {
+                "role": "system",
+                "content": "You are OncoGuide AI, a professional educational cancer assistant."
+            },
             {
                 "role": "user",
                 "content": prompt

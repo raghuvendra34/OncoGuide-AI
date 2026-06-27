@@ -38,6 +38,10 @@ if "report_text" not in st.session_state:
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+# NEW: Conversation Memory
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
 # -----------------------------
 # Upload PDF
 # -----------------------------
@@ -55,14 +59,16 @@ if uploaded_file is not None:
     # Extract text
     report_text = extract_text_from_pdf(temp_pdf_path)
 
-    # Save in session
+    # Save report
     st.session_state.report_text = report_text
 
-    # Build RAG
+    # Create chunks
     chunks = chunk_text(report_text)
 
+    # Embedding model
     embedding_model = get_embedding_model()
 
+    # Vector Store
     vector_db = create_vector_store(
         chunks,
         embedding_model
@@ -100,6 +106,7 @@ if uploaded_file is not None:
     if st.button("Explain My Report"):
 
         try:
+
             with st.spinner("Analyzing report..."):
 
                 explanation = explain_report(report_text)
@@ -108,21 +115,22 @@ if uploaded_file is not None:
             st.markdown(explanation)
 
         except Exception as e:
+
             st.error(f"Error generating explanation: {e}")
             st.code(traceback.format_exc())
 
 # -----------------------------
-# Chat Section
+# Chatbot
 # -----------------------------
 st.subheader("Ask Questions About Your Report")
 
+# Display previous chat
 for message in st.session_state.messages:
 
     with st.chat_message(message["role"]):
 
         st.markdown(message["content"])
 
-        # Display sources if available
         if (
             message["role"] == "assistant"
             and "sources" in message
@@ -139,12 +147,16 @@ for message in st.session_state.messages:
 
                     st.divider()
 
+# -----------------------------
+# User Input
+# -----------------------------
 question = st.chat_input(
     "Ask a question about your report..."
 )
 
 if question:
 
+    # Show user message
     st.session_state.messages.append(
         {
             "role": "user",
@@ -155,38 +167,39 @@ if question:
     with st.chat_message("user"):
         st.markdown(question)
 
+    # -----------------------------
+    # Generate Answer
+    # -----------------------------
     if st.session_state.vector_db:
 
         try:
+
             with st.spinner("Thinking..."):
 
-                # Retrieve relevant chunks
                 results = st.session_state.vector_db.similarity_search(
                     question,
                     k=3
                 )
-                st.write("Number of retrieved chunks:", len(results))
 
-            for i, doc in enumerate(results, start=1):
-                st.write(f"Chunk {i}:")
-                st.code(doc.page_content)
+            # Build context
+            context = "\n\n".join(
+                [doc.page_content for doc in results]
+            )
 
-                # Create context for the LLM
-                context = "\n\n".join(
-                    [doc.page_content for doc in results]
-                )
-
-                # Generate answer
-                answer = answer_question(
-                    question,
-                    context
-                )
+            # Generate answer WITH conversation memory
+            answer = answer_question(
+                question=question,
+                context=context,
+                chat_history=st.session_state.chat_history
+            )
 
         except Exception as e:
+
             answer = f"Error: {str(e)}"
             results = []
 
     else:
+
         answer = "Please upload a medical report first."
         results = []
 
@@ -195,24 +208,35 @@ if question:
     # -----------------------------
     with st.chat_message("assistant"):
 
-     st.markdown(answer)
+        st.markdown(answer)
 
-    if results:
+        if results:
 
-        with st.expander("📄 Evidence from Your Report"):
+            with st.expander("📄 Evidence from Your Report"):
 
-            for i, doc in enumerate(results, start=1):
+                for i, doc in enumerate(results, start=1):
 
-                st.markdown(f"**Evidence {i}**")
+                    st.markdown(f"**Evidence {i}**")
 
-                st.write(doc.page_content)
+                    st.write(doc.page_content)
 
-                st.divider()
+                    st.divider()
 
+    # Save UI messages
     st.session_state.messages.append(
-    {
-        "role": "assistant",
-        "content": answer,
-        "sources": [doc.page_content for doc in results] if results else []
-    }
-)
+        {
+            "role": "assistant",
+            "content": answer,
+            "sources": [doc.page_content for doc in results] if results else []
+        }
+    )
+
+    # -----------------------------
+    # Save Conversation Memory
+    # -----------------------------
+    st.session_state.chat_history.append(
+        {
+            "question": question,
+            "answer": answer
+        }
+    )
