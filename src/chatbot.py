@@ -1,43 +1,59 @@
 from ollama import chat
 
 
-def answer_question(question, context, chat_history):
+def answer_question(question, context, memory):
     """
     Answer user's question using:
     1. Uploaded medical report
     2. Retrieved report sections
-    3. Previous conversation
-    4. General medical knowledge when needed
+    3. Conversation summary
+    4. Recent conversation memory
+    5. General medical knowledge when needed
     """
 
     # -----------------------------
-    # Build Conversation History
+    # Get Memory Context
     # -----------------------------
+
+    summary = memory.get_summary()
+
+    recent_messages = memory.get_recent_history(
+        limit=4
+    )
+
+
     conversation = ""
 
-    if chat_history:
 
-        recent_history = chat_history[-5:]
+    if recent_messages:
 
-        for item in recent_history:
+        for message in recent_messages:
 
             conversation += (
-                f"User: {item['question']}\n"
-                f"Assistant: {item['answer']}\n\n"
+                f"{message['role'].capitalize()}: "
+                f"{message['content']}\n\n"
             )
 
 
     # -----------------------------
     # Prompt
     # -----------------------------
+
     prompt = f"""
 You are OncoGuide AI, an AI-powered educational cancer support assistant.
 
-Your job is to help patients understand their uploaded medical reports
-in simple and clear language.
+Your purpose is to help patients understand their uploaded medical reports
+in simple, clear, and patient-friendly language.
 
 ====================================================
-PREVIOUS CONVERSATION
+CONVERSATION SUMMARY
+====================================================
+
+{summary}
+
+
+====================================================
+RECENT CONVERSATION
 ====================================================
 
 {conversation}
@@ -47,12 +63,11 @@ PREVIOUS CONVERSATION
 RETRIEVED REPORT SECTIONS
 ====================================================
 
-The first section below is the MOST RELEVANT section
-for the user's question.
+The first section is the MOST RELEVANT section for the user's question.
 
-Use it as the PRIMARY source.
+Use the uploaded report as the primary source.
 
-The remaining sections are supporting evidence.
+Additional sections are supporting evidence.
 
 Do not combine unrelated information.
 
@@ -67,23 +82,19 @@ USER QUESTION
 
 
 ====================================================
-RULES
+ANSWER RULES
 ====================================================
 
-1. Always prioritize the uploaded medical report.
+1. Always prioritize information from the uploaded medical report.
 
-2. Use previous conversation to understand follow-up questions.
+2. Use conversation memory to understand follow-up questions.
 
-3. If information exists in the report:
-
-Start with:
+3. If the answer exists in the report, start with:
 
 ## 📋 According to Your Report
 
 
-4. If additional educational explanation is needed:
-
-Create:
+4. When explaining additional medical concepts, create:
 
 ## 🩺 General Medical Information
 
@@ -93,7 +104,7 @@ Start that section with:
 "The following information is based on general medical knowledge and is not specific to your uploaded report."
 
 
-5. If information is not present:
+5. If the information is not mentioned in the report:
 
 Say:
 
@@ -111,7 +122,16 @@ Then provide general educational information.
 - Invent medical findings
 
 
-7. Keep answers:
+7. Do not mention the patient's name unless the user specifically asks.
+
+Refer to it as:
+
+"your report"
+
+instead of using personal names.
+
+
+8. Keep answers:
 
 - Simple
 - Professional
@@ -120,7 +140,18 @@ Then provide general educational information.
 - Bullet points when useful
 
 
-8. Always finish with:
+9. Never start answers with:
+
+- "Let's address..."
+- "Let's discuss..."
+- "I will explain..."
+- "Here is an overview..."
+- "Let's understand..."
+
+Start directly with the answer.
+
+
+10. Always finish with:
 
 ## ⚠ Disclaimer
 
@@ -136,6 +167,7 @@ ANSWER
     # -----------------------------
     # Ollama Response
     # -----------------------------
+
     response = chat(
 
         model="llama3",

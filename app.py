@@ -2,7 +2,7 @@ import tempfile
 import traceback
 import streamlit as st
 
-
+from src.memory import ConversationMemory
 from src.chatbot import answer_question
 from src.pdf_reader import extract_text_from_pdf
 from src.text_chunker import chunk_text
@@ -10,7 +10,6 @@ from src.embeddings import get_embedding_model
 from src.vector_store import create_vector_store
 from src.medical_terms import simplify_terms
 from src.report_explainer import explain_report
-
 
 
 # -----------------------------
@@ -21,7 +20,6 @@ st.set_page_config(
     page_title="OncoGuide AI",
     layout="wide"
 )
-
 
 
 # -----------------------------
@@ -36,7 +34,6 @@ st.caption(
 st.divider()
 
 
-
 # -----------------------------
 # Session State
 # -----------------------------
@@ -45,17 +42,16 @@ if "vector_db" not in st.session_state:
     st.session_state.vector_db = None
 
 
+if "memory" not in st.session_state:
+    st.session_state.memory = ConversationMemory()
+
+
 if "report_text" not in st.session_state:
     st.session_state.report_text = ""
 
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
-
-
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-
 
 
 # -----------------------------
@@ -70,19 +66,16 @@ uploaded_file = st.file_uploader(
 
 if uploaded_file:
 
-
     with tempfile.NamedTemporaryFile(
         delete=False,
         suffix=".pdf"
     ) as temp:
-
 
         temp.write(
             uploaded_file.read()
         )
 
         pdf_path = temp.name
-
 
 
     report_text = extract_text_from_pdf(
@@ -93,14 +86,12 @@ if uploaded_file:
     st.session_state.report_text = report_text
 
 
-
     chunks = chunk_text(
         report_text
     )
 
 
     embedding_model = get_embedding_model()
-
 
 
     vector_db = create_vector_store(
@@ -125,7 +116,6 @@ if uploaded_file:
         "🩺 Medical Terms Explained"
     ):
 
-
         terms = simplify_terms(
             report_text
         )
@@ -138,7 +128,6 @@ if uploaded_file:
             st.write(
                 "No matching medical terms found."
             )
-
 
 
     # -----------------------------
@@ -154,7 +143,6 @@ if uploaded_file:
         )
 
 
-
     # -----------------------------
     # AI Explanation
     # -----------------------------
@@ -166,14 +154,11 @@ if uploaded_file:
         "Explain My Report"
     ):
 
-
         try:
-
 
             with st.spinner(
                 "Analyzing report..."
             ):
-
 
                 explanation = explain_report(
                     report_text
@@ -192,7 +177,6 @@ if uploaded_file:
 
         except Exception as e:
 
-
             st.error(
                 str(e)
             )
@@ -200,8 +184,6 @@ if uploaded_file:
             st.code(
                 traceback.format_exc()
             )
-
-
 
 
 # -----------------------------
@@ -218,11 +200,9 @@ st.subheader(
 
 for message in st.session_state.messages:
 
-
     with st.chat_message(
         message["role"]
     ):
-
 
         st.markdown(
             message["content"]
@@ -230,15 +210,13 @@ for message in st.session_state.messages:
 
 
         if (
-            message["role"]=="assistant"
+            message["role"] == "assistant"
             and message.get("sources")
         ):
-
 
             with st.expander(
                 "📄 Evidence From Report"
             ):
-
 
                 st.markdown(
                     "### 📌 Most Relevant Section"
@@ -252,9 +230,7 @@ for message in st.session_state.messages:
 
                 if len(message["sources"]) > 1:
 
-
                     st.divider()
-
 
                     st.markdown(
                         "### 📄 Supporting Sections"
@@ -284,13 +260,19 @@ question = st.chat_input(
 if question:
 
 
+    # Save user message in memory
+
+    st.session_state.memory.add_message(
+        "user",
+        question
+    )
+
+
     st.session_state.messages.append(
-
         {
-            "role":"user",
-            "content":question
+            "role": "user",
+            "content": question
         }
-
     )
 
 
@@ -303,16 +285,13 @@ if question:
         )
 
 
-
-    results=[]
-
+    results = []
 
 
     if st.session_state.vector_db:
 
 
         try:
-
 
             with st.spinner(
                 "Searching report..."
@@ -328,16 +307,14 @@ if question:
                 )
 
 
-
             context = "\n\n".join(
 
                 [
                     f"SECTION {i+1}\n{doc.page_content}"
-                    for i,doc in enumerate(results)
+                    for i, doc in enumerate(results)
                 ]
 
             )
-
 
 
             answer = answer_question(
@@ -346,25 +323,21 @@ if question:
 
                 context,
 
-                st.session_state.chat_history
+                st.session_state.memory
 
             )
 
 
         except Exception as e:
 
-
             answer = f"Error: {e}"
-
 
 
     else:
 
-
         answer = (
             "Please upload a medical report first."
         )
-
 
 
 
@@ -376,7 +349,6 @@ if question:
         "assistant"
     ):
 
-
         st.markdown(
             answer
         )
@@ -384,11 +356,9 @@ if question:
 
         if results:
 
-
             with st.expander(
                 "📄 Evidence From Your Report"
             ):
-
 
                 st.markdown(
                     "### 📌 Most Relevant Section"
@@ -400,8 +370,7 @@ if question:
                 )
 
 
-                if len(results)>1:
-
+                if len(results) > 1:
 
                     st.divider()
 
@@ -421,14 +390,13 @@ if question:
 
 
 
-
-    # Save Message
+    # Save assistant message
 
     st.session_state.messages.append(
 
         {
-            "role":"assistant",
-            "content":answer,
+            "role": "assistant",
+            "content": answer,
             "sources":
             [
                 doc.page_content
@@ -439,14 +407,14 @@ if question:
     )
 
 
+    # Save assistant response to memory
 
-    # Save Memory
-
-    st.session_state.chat_history.append(
-
-        {
-            "question":question,
-            "answer":answer
-        }
-
+    st.session_state.memory.add_message(
+        "assistant",
+        answer
     )
+
+
+    # Summarize if conversation becomes long
+
+    st.session_state.memory.summarize()
