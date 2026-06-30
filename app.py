@@ -2,6 +2,7 @@ import tempfile
 import traceback
 import streamlit as st
 
+from src.report_classifier import detect_report_type
 from src.memory import ConversationMemory
 from src.chatbot import answer_question
 from src.pdf_reader import extract_text_from_pdf
@@ -78,13 +79,38 @@ if uploaded_file:
         pdf_path = temp.name
 
 
+    # -----------------------------
+    # Extract PDF Text
+    # -----------------------------
+
     report_text = extract_text_from_pdf(
         pdf_path
     )
 
-
     st.session_state.report_text = report_text
 
+
+    # -----------------------------
+    # Detect Report Type
+    # -----------------------------
+
+    report_type = detect_report_type(
+        report_text
+    )
+
+
+    st.subheader(
+        "📄 Report Type"
+    )
+
+    st.info(
+        f"Detected Report Type: {report_type}"
+    )
+
+
+    # -----------------------------
+    # Create Vector Store
+    # -----------------------------
 
     chunks = chunk_text(
         report_text
@@ -122,9 +148,13 @@ if uploaded_file:
 
 
         if terms:
-            st.write(terms)
+
+            st.write(
+                terms
+            )
 
         else:
+
             st.write(
                 "No matching medical terms found."
             )
@@ -186,6 +216,7 @@ if uploaded_file:
             )
 
 
+
 # -----------------------------
 # Chat Section
 # -----------------------------
@@ -196,7 +227,9 @@ st.subheader(
 
 
 
+# -----------------------------
 # Previous Messages
+# -----------------------------
 
 for message in st.session_state.messages:
 
@@ -260,8 +293,6 @@ question = st.chat_input(
 if question:
 
 
-    # Save user message in memory
-
     st.session_state.memory.add_message(
         "user",
         question
@@ -297,7 +328,6 @@ if question:
                 "Searching report..."
             ):
 
-
                 results = (
                     st.session_state.vector_db
                     .similarity_search(
@@ -318,13 +348,9 @@ if question:
 
 
             answer = answer_question(
-
                 question,
-
                 context,
-
                 st.session_state.memory
-
             )
 
 
@@ -393,7 +419,6 @@ if question:
     # Save assistant message
 
     st.session_state.messages.append(
-
         {
             "role": "assistant",
             "content": answer,
@@ -403,18 +428,13 @@ if question:
                 for doc in results
             ]
         }
-
     )
 
-
-    # Save assistant response to memory
 
     st.session_state.memory.add_message(
         "assistant",
         answer
     )
 
-
-    # Summarize if conversation becomes long
 
     st.session_state.memory.summarize()
