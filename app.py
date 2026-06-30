@@ -47,73 +47,132 @@ if "memory" not in st.session_state:
     st.session_state.memory = ConversationMemory()
 
 
-if "report_text" not in st.session_state:
-    st.session_state.report_text = ""
-
-
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
 
+if "reports" not in st.session_state:
+    st.session_state.reports = []
+
+
 # -----------------------------
-# Upload Report
+# Upload Multiple Reports
 # -----------------------------
 
-uploaded_file = st.file_uploader(
-    "Upload Medical Report",
-    type=["pdf"]
+uploaded_files = st.file_uploader(
+    "Upload Medical Reports",
+    type=["pdf"],
+    accept_multiple_files=True
 )
 
 
-if uploaded_file:
+if uploaded_files:
 
-    with tempfile.NamedTemporaryFile(
-        delete=False,
-        suffix=".pdf"
-    ) as temp:
 
-        temp.write(
-            uploaded_file.read()
+    for uploaded_file in uploaded_files:
+
+
+        # Avoid duplicate processing
+
+        existing_files = [
+            report["filename"]
+            for report in st.session_state.reports
+        ]
+
+
+        if uploaded_file.name in existing_files:
+            continue
+
+
+
+        # Save temporary PDF
+
+        with tempfile.NamedTemporaryFile(
+            delete=False,
+            suffix=".pdf"
+        ) as temp:
+
+
+            temp.write(
+                uploaded_file.read()
+            )
+
+
+            pdf_path = temp.name
+
+
+
+        # Extract text
+
+        report_text = extract_text_from_pdf(
+            pdf_path
         )
 
-        pdf_path = temp.name
+
+        # Detect report type
+
+        report_type = detect_report_type(
+            report_text
+        )
 
 
-    # -----------------------------
-    # Extract PDF Text
-    # -----------------------------
 
-    report_text = extract_text_from_pdf(
-        pdf_path
-    )
+        # Store report
 
-    st.session_state.report_text = report_text
+        report_data = {
 
+            "filename": uploaded_file.name,
 
-    # -----------------------------
-    # Detect Report Type
-    # -----------------------------
+            "type": report_type,
 
-    report_type = detect_report_type(
-        report_text
-    )
+            "text": report_text
+
+        }
 
 
-    st.subheader(
-        "📄 Report Type"
-    )
+        st.session_state.reports.append(
+            report_data
+        )
 
-    st.info(
-        f"Detected Report Type: {report_type}"
-    )
 
 
     # -----------------------------
-    # Create Vector Store
+    # Combine Reports
+    # -----------------------------
+
+    all_reports_text = ""
+
+
+    for report in st.session_state.reports:
+
+
+        all_reports_text += f"""
+
+REPORT NAME:
+{report['filename']}
+
+
+REPORT TYPE:
+{report['type']}
+
+
+CONTENT:
+
+{report['text']}
+
+
+----------------------------
+
+"""
+
+
+
+    # -----------------------------
+    # Create Vector Database
     # -----------------------------
 
     chunks = chunk_text(
-        report_text
+        all_reports_text
     )
 
 
@@ -129,9 +188,29 @@ if uploaded_file:
     st.session_state.vector_db = vector_db
 
 
+
     st.success(
-        "Report uploaded successfully"
+        "Reports uploaded successfully"
     )
+
+
+
+    # -----------------------------
+    # Report List
+    # -----------------------------
+
+    st.subheader(
+        "📚 Uploaded Reports"
+    )
+
+
+    for report in st.session_state.reports:
+
+
+        st.write(
+            f"📄 {report['filename']} - {report['type']}"
+        )
+
 
 
     # -----------------------------
@@ -142,8 +221,9 @@ if uploaded_file:
         "🩺 Medical Terms Explained"
     ):
 
+
         terms = simplify_terms(
-            report_text
+            all_reports_text
         )
 
 
@@ -153,6 +233,7 @@ if uploaded_file:
                 terms
             )
 
+
         else:
 
             st.write(
@@ -160,17 +241,20 @@ if uploaded_file:
             )
 
 
+
     # -----------------------------
     # Report Content
     # -----------------------------
 
     with st.expander(
-        "📄 Report Content"
+        "📄 Combined Report Content"
     ):
 
+
         st.text(
-            report_text
+            all_reports_text
         )
+
 
 
     # -----------------------------
@@ -181,18 +265,23 @@ if uploaded_file:
 
 
     if st.button(
-        "Explain My Report"
+        "Explain My Reports",
+        key="explain_reports"
     ):
+
 
         try:
 
+
             with st.spinner(
-                "Analyzing report..."
+                "Analyzing reports..."
             ):
 
+
                 explanation = explain_report(
-                    report_text
+                    all_reports_text
                 )
+
 
 
             st.subheader(
@@ -205,15 +294,19 @@ if uploaded_file:
             )
 
 
+
         except Exception as e:
+
 
             st.error(
                 str(e)
             )
 
+
             st.code(
                 traceback.format_exc()
             )
+
 
 
 
@@ -222,20 +315,22 @@ if uploaded_file:
 # -----------------------------
 
 st.subheader(
-    "Ask Questions About Your Report"
+    "Ask Questions About Your Reports"
 )
 
 
 
 # -----------------------------
-# Previous Messages
+# Show Previous Messages
 # -----------------------------
 
 for message in st.session_state.messages:
 
+
     with st.chat_message(
         message["role"]
     ):
+
 
         st.markdown(
             message["content"]
@@ -247,13 +342,10 @@ for message in st.session_state.messages:
             and message.get("sources")
         ):
 
+
             with st.expander(
                 "📄 Evidence From Report"
             ):
-
-                st.markdown(
-                    "### 📌 Most Relevant Section"
-                )
 
 
                 st.write(
@@ -261,31 +353,14 @@ for message in st.session_state.messages:
                 )
 
 
-                if len(message["sources"]) > 1:
-
-                    st.divider()
-
-                    st.markdown(
-                        "### 📄 Supporting Sections"
-                    )
-
-
-                    for source in message["sources"][1:]:
-
-                        st.write(
-                            source
-                        )
-
-                        st.divider()
-
 
 
 # -----------------------------
-# User Question
+# Chat Input
 # -----------------------------
 
 question = st.chat_input(
-    "Ask about your report..."
+    "Ask about your reports..."
 )
 
 
@@ -293,10 +368,12 @@ question = st.chat_input(
 if question:
 
 
+
     st.session_state.memory.add_message(
         "user",
         question
     )
+
 
 
     st.session_state.messages.append(
@@ -307,63 +384,86 @@ if question:
     )
 
 
+
     with st.chat_message(
         "user"
     ):
+
 
         st.markdown(
             question
         )
 
 
+
     results = []
+
 
 
     if st.session_state.vector_db:
 
 
+
         try:
 
+
             with st.spinner(
-                "Searching report..."
+                "Searching reports..."
             ):
 
+
                 results = (
+
                     st.session_state.vector_db
                     .similarity_search(
                         question,
                         k=3
                     )
+
                 )
+
 
 
             context = "\n\n".join(
 
                 [
+
                     f"SECTION {i+1}\n{doc.page_content}"
+
                     for i, doc in enumerate(results)
+
                 ]
 
             )
 
 
+
             answer = answer_question(
+
                 question,
+
                 context,
+
                 st.session_state.memory
+
             )
+
 
 
         except Exception as e:
 
+
             answer = f"Error: {e}"
+
 
 
     else:
 
+
         answer = (
-            "Please upload a medical report first."
+            "Please upload medical reports first."
         )
+
 
 
 
@@ -375,6 +475,7 @@ if question:
         "assistant"
     ):
 
+
         st.markdown(
             answer
         )
@@ -382,58 +483,56 @@ if question:
 
         if results:
 
+
             with st.expander(
-                "📄 Evidence From Your Report"
+                "📄 Evidence From Reports"
             ):
 
-                st.markdown(
-                    "### 📌 Most Relevant Section"
-                )
+
+                for doc in results:
 
 
-                st.write(
-                    results[0].page_content
-                )
-
-
-                if len(results) > 1:
+                    st.write(
+                        doc.page_content
+                    )
 
                     st.divider()
 
 
-                    st.markdown(
-                        "### 📄 Supporting Sections"
-                    )
 
 
-                    for doc in results[1:]:
-
-                        st.write(
-                            doc.page_content
-                        )
-
-                        st.divider()
-
-
-
-    # Save assistant message
+    # Save assistant response
 
     st.session_state.messages.append(
+
         {
+
             "role": "assistant",
+
             "content": answer,
+
             "sources":
+
             [
+
                 doc.page_content
+
                 for doc in results
+
             ]
+
         }
+
     )
 
 
+
     st.session_state.memory.add_message(
+
         "assistant",
+
         answer
+
     )
 
 
