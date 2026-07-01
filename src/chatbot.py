@@ -1,4 +1,7 @@
 from ollama import chat
+from src.response_formatter import format_response
+from src.evidence import clean_evidence
+from src.conversation_context import build_conversation_context
 
 
 def answer_question(question, context, memory):
@@ -8,7 +11,7 @@ def answer_question(question, context, memory):
     2. Retrieved report sections
     3. Conversation summary
     4. Recent conversation memory
-    5. General medical knowledge when needed
+    5. General medical knowledge only when needed
     """
 
     # -----------------------------
@@ -17,33 +20,31 @@ def answer_question(question, context, memory):
 
     summary = memory.get_summary()
 
-    recent_messages = memory.get_recent_history(
-        limit=4
-    )
+    recent_messages = memory.get_recent_history(limit=4)
 
+    conversation = build_conversation_context(recent_messages)
 
-    conversation = ""
+    # -----------------------------
+    # Clean Retrieved Context
+    # -----------------------------
 
-
-    if recent_messages:
-
-        for message in recent_messages:
-
-            conversation += (
-                f"{message['role'].capitalize()}: "
-                f"{message['content']}\n\n"
-            )
-
+    context = clean_evidence(context)
 
     # -----------------------------
     # Prompt
     # -----------------------------
 
     prompt = f"""
-You are OncoGuide AI, an AI-powered educational cancer support assistant.
+You are OncoGuide AI, an educational AI assistant that helps patients understand their uploaded cancer-related medical reports.
 
-Your purpose is to help patients understand their uploaded medical reports
-in simple, clear, and patient-friendly language.
+You have access to:
+
+1. Uploaded medical report(s)
+2. Retrieved report sections
+3. Conversation summary
+4. Recent conversation history
+
+Your goal is to answer clearly, accurately, safely, and in simple language.
 
 ====================================================
 CONVERSATION SUMMARY
@@ -51,28 +52,25 @@ CONVERSATION SUMMARY
 
 {summary}
 
-
 ====================================================
 RECENT CONVERSATION
 ====================================================
 
 {conversation}
 
-
 ====================================================
 RETRIEVED REPORT SECTIONS
 ====================================================
 
-The first section is the MOST RELEVANT section for the user's question.
+The FIRST retrieved section is the MOST RELEVANT.
 
-Use the uploaded report as the primary source.
+Always answer using the uploaded report before using any general medical knowledge.
 
-Additional sections are supporting evidence.
+Additional retrieved sections are only supporting evidence.
 
-Do not combine unrelated information.
+Do not combine unrelated findings.
 
 {context}
-
 
 ====================================================
 USER QUESTION
@@ -80,113 +78,121 @@ USER QUESTION
 
 {question}
 
-
 ====================================================
-ANSWER RULES
+IMPORTANT INSTRUCTIONS
 ====================================================
 
-1. Always prioritize information from the uploaded medical report.
+1. Always answer using the uploaded report first.
 
 2. Use conversation memory to understand follow-up questions.
 
-3. If the answer exists in the report, start with:
+3. If the report contains the answer:
+   - Answer directly.
+   - DO NOT include unnecessary general medical information.
 
-## 📋 According to Your Report
+4. Only include general medical knowledge if:
+   - the user explicitly asks for an explanation,
+   - the report does not contain enough information,
+   - additional context genuinely helps understanding.
 
-
-4. When explaining additional medical concepts, create:
-
-## 🩺 General Medical Information
-
-
-Start that section with:
-
-"The following information is based on general medical knowledge and is not specific to your uploaded report."
-
-
-5. If the information is not mentioned in the report:
-
-Say:
+5. If information is NOT present in the report, clearly say:
 
 "This information is not directly mentioned in the uploaded medical report."
 
-Then provide general educational information.
-
+Then provide a short educational explanation.
 
 6. Never:
+   - Diagnose diseases
+   - Prescribe medicines
+   - Recommend treatments
+   - Predict outcomes
+   - Invent medical findings
 
-- Diagnose diseases
-- Prescribe medicines
-- Recommend treatments
-- Predict patient outcomes
-- Invent medical findings
+7. Never mention the patient's name unless specifically asked.
 
+Use "your report" instead.
 
-7. Do not mention the patient's name unless the user specifically asks.
+8. Keep responses:
+   - Patient-friendly
+   - Clear
+   - Concise
+   - Short paragraphs
+   - Bullet points when appropriate
 
-Refer to it as:
+9. Never start with:
+   - "Let's discuss..."
+   - "Let's understand..."
+   - "I will explain..."
+   - "Here is an overview..."
 
-"your report"
+Start immediately with the answer.
 
-instead of using personal names.
+====================================================
+OUTPUT FORMAT
+====================================================
 
+###  Report Information
 
-8. Keep answers:
+(Explain only what is found in the uploaded report.)
 
-- Simple
-- Professional
-- Patient-friendly
-- Short paragraphs
-- Bullet points when useful
+Only if needed:
 
+###  General Medical Information
 
-9. Never start answers with:
+(Begin this section with:)
 
-- "Let's address..."
-- "Let's discuss..."
-- "I will explain..."
-- "Here is an overview..."
-- "Let's understand..."
+"The following information is general medical knowledge and is not specific to your uploaded report."
 
-Start directly with the answer.
+(Provide a short explanation.)
 
+Finally:
 
-10. Always finish with:
+###  Evidence from Report
 
-## ⚠ Disclaimer
+(List the relevant report excerpts used.)
+
+====================================================
+DISCLAIMER
+====================================================
+
+Always end with:
+
+###  Disclaimer
 
 This information is for educational purposes only and should not replace professional medical advice. Please consult your healthcare provider for medical guidance.
-
 
 ====================================================
 ANSWER
 ====================================================
 """
 
-
     # -----------------------------
-    # Ollama Response
+    # Generate Response
     # -----------------------------
 
     response = chat(
-
         model="llama3",
-
         messages=[
-
             {
                 "role": "system",
-                "content":
-                "You are OncoGuide AI, a professional cancer education assistant."
+                "content": (
+                    "You are OncoGuide AI, a professional educational assistant "
+                    "that explains medical reports in simple language."
+                ),
             },
-
             {
                 "role": "user",
-                "content": prompt
-            }
-
-        ]
+                "content": prompt,
+            },
+        ],
     )
 
+    # -----------------------------
+    # Format Response
+    # -----------------------------
 
-    return response["message"]["content"]
+    answer = response["message"]["content"]
+
+    answer = format_response(answer)
+
+    return answer
