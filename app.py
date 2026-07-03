@@ -4,7 +4,6 @@ import streamlit as st
 
 from src.report_classifier import detect_report_type
 from src.memory import ConversationMemory
-from src.chatbot import answer_question
 from src.pdf_reader import extract_text_from_pdf
 from src.text_chunker import chunk_text
 from src.embeddings import get_embedding_model
@@ -12,528 +11,232 @@ from src.vector_store import create_vector_store
 from src.medical_terms import simplify_terms
 from src.report_explainer import explain_report
 
+from services.retrieval_service import retrieve_context
+from services.chat_service import answer_question
+
 
 # -----------------------------
-# Page Config
+# PAGE CONFIG
 # -----------------------------
-
 st.set_page_config(
     page_title="OncoGuide AI",
     layout="wide"
 )
 
-
-# -----------------------------
-# Header
-# -----------------------------
-
 st.title("🧬 OncoGuide AI")
-st.caption(
-    "Understand Your Cancer Report with AI"
-)
-
+st.caption("Understand Your Cancer Report with AI")
 st.divider()
 
 
 # -----------------------------
-# Session State
+# SESSION STATE
 # -----------------------------
-
 if "vector_db" not in st.session_state:
     st.session_state.vector_db = None
-
 
 if "memory" not in st.session_state:
     st.session_state.memory = ConversationMemory()
 
-
 if "messages" not in st.session_state:
     st.session_state.messages = []
-
 
 if "reports" not in st.session_state:
     st.session_state.reports = []
 
 
 # -----------------------------
-# Upload Multiple Reports
+# UPLOAD REPORTS
 # -----------------------------
-
 uploaded_files = st.file_uploader(
     "Upload Medical Reports",
     type=["pdf"],
     accept_multiple_files=True
 )
 
-
 if uploaded_files:
-
 
     for uploaded_file in uploaded_files:
 
-
-        # Avoid duplicate processing
-
-        existing_files = [
-            report["filename"]
-            for report in st.session_state.reports
-        ]
-
+        existing_files = [r["filename"] for r in st.session_state.reports]
 
         if uploaded_file.name in existing_files:
             continue
 
-
-
-        # Save temporary PDF
-
-        with tempfile.NamedTemporaryFile(
-            delete=False,
-            suffix=".pdf"
-        ) as temp:
-
-
-            temp.write(
-                uploaded_file.read()
-            )
-
-
+        # Save temp file
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp:
+            temp.write(uploaded_file.read())
             pdf_path = temp.name
 
+        # Extract + classify
+        text = extract_text_from_pdf(pdf_path)
+        report_type = detect_report_type(text)
 
-
-        # Extract text
-
-        report_text = extract_text_from_pdf(
-            pdf_path
-        )
-
-
-        # Detect report type
-
-        report_type = detect_report_type(
-            report_text
-        )
-
-
-
-        # Store report
-
-        report_data = {
-
+        st.session_state.reports.append({
             "filename": uploaded_file.name,
-
             "type": report_type,
-
-            "text": report_text
-
-        }
-
-
-        st.session_state.reports.append(
-            report_data
-        )
-
-
+            "text": text
+        })
 
     # -----------------------------
-    # Combine Reports
+    # Combine all reports
     # -----------------------------
+    all_text = ""
 
-    all_reports_text = ""
-
-
-    for report in st.session_state.reports:
-
-
-        all_reports_text += f"""
-
+    for r in st.session_state.reports:
+        all_text += f"""
 REPORT NAME:
-{report['filename']}
-
+{r['filename']}
 
 REPORT TYPE:
-{report['type']}
-
+{r['type']}
 
 CONTENT:
-
-{report['text']}
-
+{r['text']}
 
 ----------------------------
-
 """
 
-
-
     # -----------------------------
-    # Create Vector Database
+    # Create Vector DB (RAG)
     # -----------------------------
-
-    chunks = chunk_text(
-        all_reports_text
-    )
-
-
+    chunks = chunk_text(all_text)
     embedding_model = get_embedding_model()
 
-
-    vector_db = create_vector_store(
+    st.session_state.vector_db = create_vector_store(
         chunks,
         embedding_model
     )
 
-
-    st.session_state.vector_db = vector_db
-
-
-
-    st.success(
-        "Reports uploaded successfully"
-    )
-
+    st.success("Reports uploaded successfully")
 
 
     # -----------------------------
-    # Report List
+    # REPORT LIST
     # -----------------------------
+    st.subheader("📚 Uploaded Reports")
 
-    st.subheader(
-        "📚 Uploaded Reports"
-    )
-
-
-    for report in st.session_state.reports:
-
-
-        st.write(
-            f"📄 {report['filename']} - {report['type']}"
-        )
-
+    for r in st.session_state.reports:
+        st.write(f"📄 {r['filename']} - {r['type']}")
 
 
     # -----------------------------
-    # Medical Terms
+    # MEDICAL TERMS
     # -----------------------------
-
-    with st.expander(
-        "🩺 Medical Terms Explained"
-    ):
-
-
-        terms = simplify_terms(
-            all_reports_text
-        )
-
-
-        if terms:
-
-            st.write(
-                terms
-            )
-
-
-        else:
-
-            st.write(
-                "No matching medical terms found."
-            )
-
+    with st.expander("🩺 Medical Terms Explained"):
+        terms = simplify_terms(all_text)
+        st.write(terms if terms else "No medical terms found.")
 
 
     # -----------------------------
-    # Report Content
+    # FULL REPORT VIEW
     # -----------------------------
-
-    with st.expander(
-        "📄 Combined Report Content"
-    ):
-
-
-        st.text(
-            all_reports_text
-        )
-
+    with st.expander("📄 Combined Report Content"):
+        st.text(all_text)
 
 
     # -----------------------------
-    # AI Explanation
+    # AI REPORT SUMMARY
     # -----------------------------
-
     st.divider()
 
-
-    if st.button(
-        "Explain My Reports",
-        key="explain_reports"
-    ):
-
-
+    if st.button("Explain My Reports"):
         try:
+            with st.spinner("Analyzing reports..."):
+                explanation = explain_report(all_text)
 
-
-            with st.spinner(
-                "Analyzing reports..."
-            ):
-
-
-                explanation = explain_report(
-                    all_reports_text
-                )
-
-
-
-            st.subheader(
-                "AI Report Explanation"
-            )
-
-
-            st.markdown(
-                explanation
-            )
-
-
+            st.subheader("AI Report Explanation")
+            st.markdown(explanation)
 
         except Exception as e:
-
-
-            st.error(
-                str(e)
-            )
-
-
-            st.code(
-                traceback.format_exc()
-            )
-
-
+            st.error(str(e))
+            st.code(traceback.format_exc())
 
 
 # -----------------------------
-# Chat Section
+# CHAT SECTION
 # -----------------------------
+st.subheader("💬 Ask Questions About Your Reports")
 
-st.subheader(
-    "Ask Questions About Your Reports"
-)
 
+# Show chat history
+for msg in st.session_state.messages:
 
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
-# -----------------------------
-# Show Previous Messages
-# -----------------------------
-
-for message in st.session_state.messages:
-
-
-    with st.chat_message(
-        message["role"]
-    ):
-
-
-        st.markdown(
-            message["content"]
-        )
-
-
-        if (
-            message["role"] == "assistant"
-            and message.get("sources")
-        ):
-
-
-            with st.expander(
-                "📄 Evidence From Report"
-            ):
-
-
-                st.write(
-                    message["sources"][0]
-                )
-
-
-
-
-# -----------------------------
-# Chat Input
-# -----------------------------
-
-question = st.chat_input(
-    "Ask about your reports..."
-)
-
-
-
-if question:
-
-
-
-    st.session_state.memory.add_message(
-        "user",
-        question
-    )
-
-
-
-    st.session_state.messages.append(
-        {
-            "role": "user",
-            "content": question
-        }
-    )
-
-
-
-    with st.chat_message(
-        "user"
-    ):
-
-
-        st.markdown(
-            question
-        )
-
-
-
-    results = []
-
-
-
-    if st.session_state.vector_db:
-
-
-
-        try:
-
-
-            with st.spinner(
-                "Searching reports..."
-            ):
-
-
-                results = (
-
-                    st.session_state.vector_db
-                    .similarity_search(
-                        question,
-                        k=3
-                    )
-
-                )
-
-
-
-            context = "\n\n".join(
-
-                [
-
-                    f"SECTION {i+1}\n{doc.page_content}"
-
-                    for i, doc in enumerate(results)
-
-                ]
-
-            )
-
-
-
-            answer = answer_question(
-
-                question,
-
-                context,
-
-                st.session_state.memory
-
-            )
-
-
-
-        except Exception as e:
-
-
-            answer = f"Error: {e}"
-
-
-
-    else:
-
-
-        answer = (
-            "Please upload medical reports first."
-        )
-
-
-
-
-    # -----------------------------
-    # Display Answer
-    # -----------------------------
-
-    with st.chat_message(
-        "assistant"
-    ):
-
-
-        st.markdown(
-            answer
-        )
-
-
-        if results:
-
-
-            with st.expander(
-                "📄 Evidence From Reports"
-            ):
-
-
-                for doc in results:
-
-
-                    st.write(
-                        doc.page_content
-                    )
-
+        if msg["role"] == "assistant" and msg.get("sources"):
+            with st.expander("📄 Evidence From Report"):
+                for s in msg["sources"]:
+                    st.write(s)
                     st.divider()
 
 
+# -----------------------------
+# CHAT INPUT
+# -----------------------------
+question = st.chat_input("Ask about your reports...")
 
+if question:
 
-    # Save assistant response
+    # Save user message
+    st.session_state.memory.add_message("user", question)
 
-    st.session_state.messages.append(
+    st.session_state.messages.append({
+        "role": "user",
+        "content": question
+    })
 
-        {
+    with st.chat_message("user"):
+        st.markdown(question)
 
-            "role": "assistant",
+    answer = ""
+    results = []
 
-            "content": answer,
+    if st.session_state.vector_db:
 
-            "sources":
+        try:
+            with st.spinner("Searching reports..."):
 
-            [
+                # STEP 1: Retrieve context
+                context = retrieve_context(
+                    st.session_state.vector_db,
+                    question
+                )
 
-                doc.page_content
+                # STEP 2: Generate answer
+                answer = answer_question(
+                    question,
+                    context,
+                    st.session_state.memory
+                )
 
-                for doc in results
+                # STEP 3: store raw docs for UI evidence
+                results = st.session_state.vector_db.similarity_search(question, k=3)
 
-            ]
+        except Exception as e:
+            answer = f"Error: {e}"
 
-        }
+    else:
+        answer = "Please upload medical reports first."
 
-    )
+    # -----------------------------
+    # SHOW ASSISTANT RESPONSE
+    # -----------------------------
+    with st.chat_message("assistant"):
+        st.markdown(answer)
 
+        if results:
+            with st.expander("📄 Evidence From Reports"):
+                for doc in results:
+                    st.write(doc.page_content)
+                    st.divider()
 
+    # Save assistant message
+    st.session_state.messages.append({
+        "role": "assistant",
+        "content": answer,
+        "sources": [d.page_content for d in results]
+    })
 
-    st.session_state.memory.add_message(
-
-        "assistant",
-
-        answer
-
-    )
-
-
+    st.session_state.memory.add_message("assistant", answer)
     st.session_state.memory.summarize()

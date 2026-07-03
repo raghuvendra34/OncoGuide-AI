@@ -1,28 +1,19 @@
-# src/medical_terms.py
+def simplify_terms(text: str):
+    """
+    ONLY extract medical terms and define them.
+    NO summaries, NO report explanation.
+    """
 
-MEDICAL_TERMS = {
-    "chemotherapy": "A treatment that uses medicines to destroy cancer cells.",
-    
-    "radiation therapy": "A treatment that uses high-energy rays to kill cancer cells.",
-    
-    "stage ii breast cancer": "Cancer is present in the breast and has spread slightly to nearby tissues or lymph nodes.",
-    
-    "tumor": "An abnormal growth of cells in the body.",
-    
-    "malignant": "Cancerous and able to spread to other parts of the body.",
-    
-    "benign": "Not cancerous and does not spread."
-}
+    prompt = f"""
+Extract ONLY medical terms from the text and define them simply.
 
-def simplify_terms(text):
-    explanations = []
+Return in format:
+Term: Definition
 
-    text_lower = text.lower()
+TEXT:
+{text}
+"""
 
-    for term, meaning in MEDICAL_TERMS.items():
-        if term in text_lower:
-            explanations.append(
-                f"{term.title()}:\n{meaning}\n"
-            )
+    from llm.llm_engine import generate_response
 
-    return "\n".join(explanations)
+    return generate_response(prompt)
