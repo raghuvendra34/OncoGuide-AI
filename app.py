@@ -2,6 +2,7 @@ import tempfile
 import traceback
 import streamlit as st
 
+from src.report_selector import detect_requested_report
 from src.report_classifier import detect_report_type
 from src.memory import ConversationMemory
 from src.pdf_reader import extract_text_from_pdf
@@ -204,7 +205,7 @@ if question:
                 )
 
                 # STEP 2: Generate answer
-                answer = answer_question(
+                answer, detected_report = answer_question(
                     question,
                     context,
                     st.session_state.memory
@@ -223,7 +224,13 @@ if question:
     # SHOW ASSISTANT RESPONSE
     # -----------------------------
     with st.chat_message("assistant"):
-        st.markdown(answer)
+
+        if detected_report:
+            st.info(f"🧠 Detected Report: {detected_report.upper()}")
+
+        else:
+           st.info("🧠 Detected Report: ALL REPORTS")
+           st.markdown(answer)
 
         if results:
             with st.expander("📄 Evidence From Reports"):
