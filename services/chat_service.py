@@ -4,6 +4,7 @@ from llm.llm_engine import generate_response
 from src.response_formatter import format_response
 from src.evidence import clean_evidence
 from src.conversation_context import build_conversation_context
+from src.context_optimizer import optimize_context
 
 
 def answer_question(question, context, memory):
@@ -17,14 +18,17 @@ def answer_question(question, context, memory):
     # -----------------------------
     # Clean retrieval context
     # -----------------------------
+
     context = clean_evidence(context)
+
+    context = optimize_context(context)
 
     # -----------------------------
     # Memory
     # -----------------------------
     summary = memory.get_summary()
 
-    recent = memory.get_recent_history(limit=4)
+    recent = memory.get_recent_history(limit=8)
 
     conversation = build_conversation_context(recent)
 
