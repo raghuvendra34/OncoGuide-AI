@@ -11,6 +11,7 @@ from src.embeddings import get_embedding_model
 from src.vector_store import create_vector_store
 from src.medical_terms import simplify_terms
 from src.report_explainer import explain_report
+from src.medical_information_extractor import extract_medical_information
 
 from services.retrieval_service import retrieve_context
 from services.chat_service import answer_question
@@ -72,11 +73,18 @@ if uploaded_files:
         text = extract_text_from_pdf(pdf_path)
         report_type = detect_report_type(text)
 
+        # Extract structured medical information
+        structured_info = extract_medical_information(
+            text,
+            report_type
+        )
+
         st.session_state.reports.append({
             "filename": uploaded_file.name,
             "type": report_type,
-            "text": text
-        })
+            "text": text,
+            "structured_info": structured_info
+         })
 
     # -----------------------------
     # Combine all reports
@@ -84,18 +92,24 @@ if uploaded_files:
     all_text = ""
 
     for r in st.session_state.reports:
+
+        structured_summary = r["structured_info"]["structured_summary"]
+
         all_text += f"""
-REPORT NAME:
-{r['filename']}
+        REPORT NAME:
+            {r['filename']}
 
-REPORT TYPE:
-{r['type']}
+        REPORT TYPE:
+            {r['type']}
 
-CONTENT:
-{r['text']}
+        STRUCTURED MEDICAL SUMMARY:
+            {structured_summary}
 
-----------------------------
-"""
+        ORIGINAL REPORT:
+            {r['text']}
+
+        ----------------------------
+    """
 
     # -----------------------------
     # Create Vector DB (RAG)
@@ -118,6 +132,43 @@ CONTENT:
 
     for r in st.session_state.reports:
         st.write(f"📄 {r['filename']} - {r['type']}")
+
+    # -----------------------------
+    # STRUCTURED MEDICAL INFORMATION
+    # -----------------------------
+    st.subheader("📋 Structured Medical Information")
+
+    for report in st.session_state.reports:
+
+        info = report["structured_info"]
+
+        with st.expander(f"📄 {report['filename']}"):
+
+            st.markdown(f"### 🩺 Diagnosis")
+            st.write(info["diagnosis"])
+
+            st.markdown("### 🔍 Findings")
+            st.write(info["findings"])
+
+            st.markdown("### 📌 Impression")
+            st.write(info["impression"])
+
+            st.markdown("### 💊 Treatment")
+            st.write(info["treatment"])
+
+            st.markdown("### 📅 Recommendations")
+            st.write(info["recommendations"])
+
+            st.markdown("### ⚠️ Abnormal Values")
+            st.write(info["abnormal_values"])
+
+            st.markdown("### 🧬 Medical Terms")
+
+            if info["medical_terms"]:
+                for term in info["medical_terms"]:
+                    st.write(f"• {term}")
+            else:
+                st.write("None")
 
 
     # -----------------------------
@@ -192,6 +243,7 @@ if question:
 
     answer = ""
     results = []
+    detected_report = None
 
     if st.session_state.vector_db:
 
@@ -227,10 +279,10 @@ if question:
 
         if detected_report:
             st.info(f"🧠 Detected Report: {detected_report.upper()}")
-
         else:
-           st.info("🧠 Detected Report: ALL REPORTS")
-           st.markdown(answer)
+            st.info("🧠 Detected Report: ALL REPORTS")
+
+        st.markdown(answer)
 
         if results:
             with st.expander("📄 Evidence From Reports"):
