@@ -64,7 +64,70 @@ Return ONLY the extracted fields.
 
     extracted_text = response["message"]["content"].strip()
 
+    # Helper to extract fields safely
+    def get_field(field_name):
+        """
+        Extract a field from the LLM response.
+        """
+
+        start = extracted_text.find(field_name)
+
+        if start == -1:
+            return "Not Mentioned"
+
+        start += len(field_name)
+
+        fields = [
+            "Diagnosis:",
+            "Findings:",
+            "Impression:",
+            "Recommendations:",
+            "Medications/Treatment:",
+            "Abnormal Values:",
+            "Key Medical Terms:"
+        ]
+
+        end = len(extracted_text)
+
+        for f in fields:
+
+            if f == field_name:
+                continue
+
+            pos = extracted_text.find(f, start)
+
+            if pos != -1 and pos < end:
+                end = pos
+
+        return extracted_text[start:end].strip()
+
+
+    medical_terms = get_field("Key Medical Terms:")
+
+    medical_terms = [
+        t.strip("-• ")
+        for t in medical_terms.split("\n")
+        if t.strip()
+    ]
+
+
     return {
+
         "report_type": report_type,
+
+        "diagnosis": get_field("Diagnosis:"),
+
+        "findings": get_field("Findings:"),
+
+        "impression": get_field("Impression:"),
+
+        "recommendations": get_field("Recommendations:"),
+
+        "treatment": get_field("Medications/Treatment:"),
+
+        "abnormal_values": get_field("Abnormal Values:"),
+
+        "medical_terms": medical_terms,
+
         "structured_summary": extracted_text
     }
