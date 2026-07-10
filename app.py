@@ -13,6 +13,7 @@ from src.report_explainer import explain_report
 from src.medical_information_extractor import extract_medical_information
 from src.cross_report_reasoner import CrossReportReasoner
 from src.patient_timeline import PatientTimeline
+from src.case_summary_generator import CaseSummaryGenerator
 
 # NEW (Day 20)
 from src.patient_journey import PatientJourneyGenerator
@@ -40,6 +41,7 @@ defaults = {
     "patient_summary": {},
     "patient_journey": "",
     "patient_timeline": PatientTimeline(),
+    "case_summary": {}
 }
 
 for key, value in defaults.items():
@@ -97,8 +99,22 @@ if uploaded_files:
 
     if new_reports:
 
-        reasoner = CrossReportReasoner(new_reports)
+        all_structured_reports = [
+            report["structured_info"]
+            for report in st.session_state.reports
+        ]
+
+        reasoner = CrossReportReasoner(all_structured_reports)
         st.session_state.patient_summary = reasoner.build_summary()
+        
+        case_generator = CaseSummaryGenerator()
+
+        timeline = st.session_state.patient_timeline.get_timeline()
+
+        st.session_state.case_summary = case_generator.generate_summary(
+            extracted_information=st.session_state.patient_summary,
+            patient_timeline=timeline
+        )
 
         reports_for_journey = [
             {
@@ -223,6 +239,37 @@ if st.session_state.reports:
             "Recommendations:",
             summary.get("recommendations")
         )
+    # --------------------------------------------------
+    # AI CASE SUMMARY
+    # --------------------------------------------------
+    st.subheader("📄 AI Cancer Case Summary")
+
+    case_summary = st.session_state.case_summary
+
+    if case_summary:
+        
+        sections = [
+            ("👤 Patient Information", "patient_information"),
+            ("🩺 Primary Diagnosis", "primary_diagnosis"),
+            ("📊 Cancer Stage", "cancer_stage"),
+            ("📈 Disease Progression", "disease_progression"),
+            ("💊 Treatments", "treatments"),
+            ("✅ Response To Treatment", "response_to_treatment"),
+            ("📍 Current Status", "current_status"),
+            ("📅 Follow-up", "follow_up"),
+            ("📝 Clinical Summary", "clinical_summary"),
+        ]
+
+        for title, key in sections:
+            with st.container(border=True):
+                st.markdown(f"### {title}")
+                st.write(case_summary.get(key, "Not Available"))
+
+        if case_summary.get("key_findings"):
+            st.markdown("### 🔍 Key Findings")
+
+            for finding in case_summary["key_findings"]:
+                st.success(finding)    
 
     # --------------------------------------------------
     # STRUCTURED INFO
