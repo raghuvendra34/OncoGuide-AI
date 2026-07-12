@@ -9,11 +9,16 @@ from src.text_chunker import chunk_text
 from src.embeddings import get_embedding_model
 from src.vector_store import create_vector_store
 from src.medical_terms import simplify_terms
-from src.report_explainer import explain_report
 from src.medical_information_extractor import extract_medical_information
 from src.cross_report_reasoner import CrossReportReasoner
 from src.patient_timeline import PatientTimeline
 from src.case_summary_generator import CaseSummaryGenerator
+
+
+from src.report_explainer import (
+    explain_report,
+    generate_patient_summary,
+)
 
 # NEW (Day 20)
 from src.patient_journey import PatientJourneyGenerator
@@ -332,9 +337,38 @@ if st.session_state.reports:
             st.error(str(e))
             st.code(traceback.format_exc())
 
-# --------------------------------------------------
-# CHATBOT
-# --------------------------------------------------
+
+    # --------------------------------------------------
+    # AI PATIENT SUMMARY
+    # --------------------------------------------------
+    if st.button("Generate Patient Summary"):
+
+        try:
+
+            combined_text = "\n".join(
+                [r["text"] for r in st.session_state.reports]
+            )
+
+            with st.spinner("Generating patient summary..."):
+
+                summary = generate_patient_summary(
+                    combined_text
+                )
+
+            st.subheader("AI Patient Summary")
+
+            st.markdown(summary)
+
+        except Exception as e:
+
+            st.error(str(e))
+            st.code(traceback.format_exc())
+
+
+
+    # --------------------------------------------------
+    # CHATBOT
+    # --------------------------------------------------
 st.subheader("💬 Ask Questions About Your Reports")
 
 for msg in st.session_state.messages:
