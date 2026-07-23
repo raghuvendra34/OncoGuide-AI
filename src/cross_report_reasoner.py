@@ -1,6 +1,3 @@
-from collections import defaultdict
-
-
 class CrossReportReasoner:
     """
     Combines structured information extracted from
@@ -8,19 +5,44 @@ class CrossReportReasoner:
     """
 
     def __init__(self, extracted_reports):
-        """
-        extracted_reports:
-        List of dictionaries returned by the
-        Medical Information Extraction Engine.
-        """
         self.reports = extracted_reports
+
+    def normalize_list(self, value):
+        """
+        Ensure every list field is actually a clean list.
+        """
+
+        if value is None:
+            return []
+
+        if isinstance(value, list):
+            return [
+                item.strip()
+                for item in value
+                if item and item.strip() and item != "Not Mentioned"
+            ]
+
+        if isinstance(value, str):
+
+            value = value.strip()
+
+            if (
+                not value
+                or value.lower() == "not mentioned"
+                or value.lower() == "none"
+            ):
+                return []
+
+            return [value]
+
+        return []
 
     def build_summary(self):
 
         summary = {
-            "patient_name": None,
-            "diagnosis": None,
-            "cancer_stage": None,
+            "patient_name": "Not Mentioned",
+            "diagnosis": "Not Mentioned",
+            "cancer_stage": "Not Mentioned",
             "treatments": [],
             "medications": [],
             "biomarkers": {},
@@ -35,27 +57,58 @@ class CrossReportReasoner:
         recommendations = set()
 
         biomarkers = {}
-        labs = {}
         tumor = {}
+        labs = {}
 
         for report in self.reports:
 
-            if not summary["patient_name"]:
-                summary["patient_name"] = report.get("patient_name")
+            if (
+                summary["patient_name"] == "Not Mentioned"
+                and report.get("patient_name")
+            ):
+                summary["patient_name"] = report["patient_name"]
 
-            if not summary["diagnosis"]:
-                summary["diagnosis"] = report.get("diagnosis")
+            if (
+                summary["diagnosis"] == "Not Mentioned"
+                and report.get("diagnosis")
+            ):
+                summary["diagnosis"] = report["diagnosis"]
 
-            if not summary["cancer_stage"]:
-                summary["cancer_stage"] = report.get("cancer_stage")
+            if (
+                summary["cancer_stage"] == "Not Mentioned"
+                and report.get("cancer_stage")
+            ):
+                summary["cancer_stage"] = report["cancer_stage"]
 
-            treatments.update(report.get("treatments", []))
-            medications.update(report.get("medications", []))
-            recommendations.update(report.get("recommendations", []))
+            treatments.update(
+                self.normalize_list(
+                    report.get("treatments")
+                )
+            )
 
-            biomarkers.update(report.get("biomarkers", {}))
-            labs.update(report.get("lab_results", {}))
-            tumor.update(report.get("tumor_details", {}))
+            medications.update(
+                self.normalize_list(
+                    report.get("medications")
+                )
+            )
+
+            recommendations.update(
+                self.normalize_list(
+                    report.get("recommendations")
+                )
+            )
+
+            biomarkers.update(
+                report.get("biomarkers", {})
+            )
+
+            tumor.update(
+                report.get("tumor_details", {})
+            )
+
+            labs.update(
+                report.get("lab_results", {})
+            )
 
             summary["timeline"].append({
                 "report_type": report.get("report_type"),
@@ -64,12 +117,12 @@ class CrossReportReasoner:
                 "stage": report.get("cancer_stage")
             })
 
-        summary["treatments"] = sorted(list(treatments))
-        summary["medications"] = sorted(list(medications))
-        summary["recommendations"] = sorted(list(recommendations))
+        summary["treatments"] = sorted(treatments)
+        summary["medications"] = sorted(medications)
+        summary["recommendations"] = sorted(recommendations)
 
         summary["biomarkers"] = biomarkers
-        summary["lab_results"] = labs
         summary["tumor_details"] = tumor
+        summary["lab_results"] = labs
 
         return summary

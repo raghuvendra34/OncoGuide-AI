@@ -6,72 +6,77 @@ class PatientJourneyGenerator:
     Generates a chronological patient journey using all uploaded reports.
     """
 
-    def __init__(self, model="llama3"):
+    def __init__(self, model="llama3:latest"):
         self.model = model
 
     def generate_journey(self, reports):
         """
         reports:
-            [
-                {
-                    "report_type": "...",
-                    "filename": "...",
-                    "text": "..."
-                }
-            ]
+        [
+            {
+                "report_type": "...",
+                "filename": "...",
+                "text": "..."
+            }
+        ]
         """
 
         report_context = ""
 
-        for report in reports:
+        for i, report in enumerate(reports, start=1):
 
             report_context += f"""
+==============================
+REPORT {i}
 
 Report Type:
 {report['report_type']}
 
-File:
+Filename:
 {report['filename']}
 
 Content:
-{report['text'][:5000]}
+{report['text'][:4000]}
 
 """
 
         prompt = f"""
-You are an expert oncology medical assistant.
+You are an experienced oncology specialist.
 
-You are given multiple medical reports belonging to the SAME patient.
+You are reviewing multiple reports belonging to the SAME patient.
 
-Create a chronological patient journey.
+Your task is to reconstruct the patient's medical journey.
 
-Instructions:
+STRICT RULES
 
-- Use only information present in the reports.
-- Keep the language simple.
-- Mention:
-    • diagnosis
-    • biopsy
-    • surgeries
-    • chemotherapy
-    • radiation
-    • scans
-    • treatment response
-    • follow-up
+1. Use ONLY information explicitly written in the reports.
+2. Never assume surgery, chemotherapy, radiation, biopsy or recurrence.
+3. If a treatment is NOT mentioned, do NOT include it.
+4. Ignore hospital names, doctor names, registration numbers and headers.
+5. Keep events in chronological order whenever dates are available.
+6. Keep each point short (1–2 sentences).
+7. If information is unclear because of OCR, ignore it.
+8. If only imaging reports are available, describe only the imaging findings.
+9. Do NOT repeat the same finding multiple times.
 
-Return in this format:
+Return EXACTLY in this format:
 
 Patient Journey
 
-• ...
+• Initial diagnosis (if mentioned)
 
-• ...
+• Important imaging findings
 
-• ...
+• Treatments performed (only if explicitly stated)
 
-Do not invent information.
+• Follow-up findings
 
-Reports:
+• Current disease status
+
+If any section is unavailable, write:
+Not Mentioned
+
+Medical Reports:
 
 {report_context}
 """
@@ -88,7 +93,7 @@ Reports:
                 ]
             )
 
-            return response["message"]["content"]
+            return response["message"]["content"].strip()
 
         except Exception as e:
 
