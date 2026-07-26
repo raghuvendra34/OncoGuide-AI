@@ -12,6 +12,7 @@
 ![License](https://img.shields.io/badge/License-MIT-4CAF50?style=for-the-badge)
 
 [![Watch Demo](https://img.shields.io/badge/Watch-Demo%20Video-34A853?style=for-the-badge&logo=googledrive&logoColor=white)](https://drive.google.com/drive/folders/18em9aviIRV1wiMohRW4WBGOsSa1u7h60?usp=sharing)
+[![Live App](https://img.shields.io/badge/Live-App-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://oncoguide-ai-fuwyaukyjwcpogxtdzeb6t.streamlit.app)
 
 </div>
 
@@ -38,7 +39,7 @@ Cancer patients are handed pathology reports, MRI and CT scans, blood work, and 
 
 ## Demo
 
-**[Watch the demo video](https://drive.google.com/drive/folders/18em9aviIRV1wiMohRW4WBGOsSa1u7h60?usp=sharing)**
+**[Try the live app](https://oncoguide-ai-fuwyaukyjwcpogxtdzeb6t.streamlit.app)** · **[Watch the demo video](https://drive.google.com/drive/folders/18em9aviIRV1wiMohRW4WBGOsSa1u7h60?usp=sharing)**
 
 The recording walks through the core experience: uploading multiple report types, automatic report classification, a plain-language report explanation, and a live Q&A session with the evidence-backed chatbot.
 
@@ -237,7 +238,7 @@ Contributions, bug reports, and feature suggestions are welcome. Open an issue o
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License.
 
 ## Acknowledgments
 
