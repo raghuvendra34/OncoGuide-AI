@@ -1,5 +1,4 @@
-from ollama import chat
-
+from llm.llm_engine import generate_response
 from src.response_formatter import format_response
 from src.evidence import clean_evidence
 from src.conversation_context import build_conversation_context
@@ -70,32 +69,6 @@ ANSWER
 ====================================================
 """
     return prompt
-
-
-# --------------------------------------------------
-# LLM CALL (SEPARATED)
-# --------------------------------------------------
-
-def generate_response(prompt):
-    response = chat(
-        model="llama3",
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You are OncoGuide AI, a medical report assistant. "
-                    "Never hallucinate medical findings."
-                ),
-            },
-            {
-                "role": "user",
-                "content": prompt,
-            },
-        ],
-    )
-
-    return response["message"]["content"]
-
 
 # --------------------------------------------------
 # MAIN FUNCTION (CLEAN)

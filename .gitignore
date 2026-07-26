@@ -1,16 +1,67 @@
+# ==========================
+# Python
+# ==========================
 venv/
+.venv/
 __pycache__/
-*.pyc
+*.py[cod]
+
+# ==========================
+# macOS
+# ==========================
 .DS_Store
+
+# ==========================
+# Environment variables
+# ==========================
 .env
+.env.*
 
+# ==========================
+# Streamlit
+# ==========================
+.streamlit/secrets.toml
+
+# (Optional) Ignore local Streamlit cache only
+.streamlit/cache/
+
+# ==========================
+# VS Code
+# ==========================
+.vscode/
+
+# ==========================
+# Tests
+# ==========================
 test.py
-
-# Uploaded reports
-temp.pdf
-data/reports/
-*.pdf
-
-# Streamlit cache
-.streamlit/
 test_ollama.py
+
+# ==========================
+# Uploaded Reports
+# ==========================
+temp.pdf
+
+
+# ==========================
+# Logs
+# ==========================
+*.log
+
+# ==========================
+# Build files
+# ==========================
+build/
+dist/
+*.egg-info/
+
+# ==========================
+# Python caches
+# ==========================
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ==========================
+# Jupyter
+# ==========================
+.ipynb_checkpoints/

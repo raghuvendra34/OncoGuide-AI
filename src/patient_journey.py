@@ -1,13 +1,12 @@
-from ollama import chat
-
+from llm.llm_engine import generate_response
 
 class PatientJourneyGenerator:
     """
     Generates a chronological patient journey using all uploaded reports.
     """
 
-    def __init__(self, model="llama3:latest"):
-        self.model = model
+    def __init__(self):
+        pass
 
     def generate_journey(self, reports):
         """
@@ -83,17 +82,7 @@ Medical Reports:
 
         try:
 
-            response = chat(
-                model=self.model,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ]
-            )
-
-            return response["message"]["content"].strip()
+            return generate_response(prompt).strip()
 
         except Exception as e:
 
