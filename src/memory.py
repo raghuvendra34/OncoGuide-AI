@@ -1,4 +1,4 @@
-from ollama import chat
+from llm.llm_engine import generate_response
 
 
 class ConversationMemory:
@@ -115,51 +115,39 @@ Update the summary while preserving important previous information.
 
 Include ONLY:
 
-• Important report findings discussed
+- Important report findings discussed
 
-• Medical concepts already explained
+- Medical concepts already explained
 
-• Questions already answered
+- Questions already answered
 
-• Patient concerns
+- Patient concerns
 
-• Important follow-up topics
+- Important follow-up topics
 
 Do NOT include:
 
-• Greetings
+- Greetings
 
-• Small talk
+- Small talk
 
-• Repeated information
+- Repeated information
 
-• Formatting
+- Formatting
 
 Keep the summary concise (maximum 200 words).
 
 Return only the updated summary.
 """
 
+        system_instruction = (
+            "You create concise medical conversation summaries "
+            "for OncoGuide AI.\n\n"
+        )
+
         try:
-
-            response = chat(
-                model="llama3",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You create concise medical conversation summaries "
-                            "for OncoGuide AI."
-                        ),
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt,
-                    },
-                ],
-            )
-
-            self.summary = response["message"]["content"].strip()
+            response_text = generate_response(system_instruction + prompt)
+            self.summary = response_text.strip()
 
         except Exception:
             # Keep the previous summary if summarization fails
